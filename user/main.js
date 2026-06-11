@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3000/api";
+const API_URL = "https://farrelgaskagithubio-production.up.railway.app/api";
 
 function showPage(name) {
   document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));

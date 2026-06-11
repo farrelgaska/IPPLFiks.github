@@ -1,5 +1,5 @@
-const API_BASE = "http://localhost:3000";
-const API_URL = "http://localhost:3000/api";
+const API_BASE = "https://farrelgaskagithubio-production.up.railway.app";
+const API_URL = "https://farrelgaskagithubio-production.up.railway.app/api";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
