@@ -7,36 +7,6 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get("/api/preview-laporan", (req, res) => {
-  const list = readDB();
-
-  if (!list.length) {
-    return res.json({
-      success: true,
-      data: {
-        kode: "Belum Ada Laporan",
-        kategori: "-",
-        status: "Menunggu Verifikasi"
-      }
-    });
-  }
-
-  const terbaru = list[0];
-
-  res.json({
-    success: true,
-    data: {
-      kode: terbaru.kode,
-      kategori: terbaru.kategori,
-      status: terbaru.status
-    }
-  });
-});
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend berjalan di port ${PORT}`);
-});
-
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const DB_FILE = path.join(DATA_DIR, "pengaduan.json");
@@ -393,6 +363,8 @@ app.get("/api/preview-laporan", (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend berjalan di http://localhost:${PORT}`);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Backend berjalan di port ${PORT}`);
 });
