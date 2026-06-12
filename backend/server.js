@@ -38,6 +38,141 @@ function writeDB(data) {
 function clean(value) {
   return String(value || "").trim();
 }
+function clean(value) {
+  return String(value || "").trim();
+}
+
+// TEMPEL KODE TELEGRAM DI SINI
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function sendTelegramNotification(laporan) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+  if (!token || !chatId) {
+    console.log("Telegram belum dikonfigurasi. Notifikasi dilewati.");
+    return;
+  }
+
+  const waktu = new Date(laporan.createdAt).toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+
+  const pesan = `
+<b>🚨 Pengaduan Baru Masuk</b>
+
+<b>Kode:</b> ${escapeHtml(laporan.kode)}
+<b>Nama:</b> ${escapeHtml(laporan.namaLengkap)}
+<b>No HP:</b> ${escapeHtml(laporan.noHp)}
+<b>Kategori:</b> ${escapeHtml(laporan.kategori)}
+<b>Lokasi:</b> ${escapeHtml(laporan.lokasi)}
+<b>Status:</b> ${escapeHtml(laporan.status)}
+<b>Waktu:</b> ${escapeHtml(waktu)}
+
+<b>Kronologi:</b>
+${escapeHtml(laporan.kronologi)}
+
+Silakan cek dashboard admin.
+`;
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: pesan,
+      parse_mode: "HTML",
+      disable_web_page_preview: true
+    })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    console.error("Gagal kirim notifikasi Telegram:", result);
+  } else {
+    console.log("Notifikasi Telegram berhasil dikirim.");
+  }
+}
+
+function makeKode() {
+  const list = readDB();
+  const year = new Date().getFullYear();
+  const sameYear = list.filter((item) => item.kode.includes(`WNS-${year}`));
+  const nextNumber = sameYear.length + 1;
+
+  return `WNS-${year}-${String(nextNumber).padStart(5, "0")}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function sendTelegramNotification(laporan) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+  if (!token || !chatId) {
+    console.log("Telegram belum dikonfigurasi. Notifikasi dilewati.");
+    return;
+  }
+
+  const waktu = new Date(laporan.createdAt).toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+
+  const pesan = `
+<b>🚨 Pengaduan Baru Masuk</b>
+
+<b>Kode:</b> ${escapeHtml(laporan.kode)}
+<b>Nama:</b> ${escapeHtml(laporan.namaLengkap)}
+<b>No HP:</b> ${escapeHtml(laporan.noHp)}
+<b>Kategori:</b> ${escapeHtml(laporan.kategori)}
+<b>Lokasi:</b> ${escapeHtml(laporan.lokasi)}
+<b>Status:</b> ${escapeHtml(laporan.status)}
+<b>Waktu:</b> ${escapeHtml(waktu)}
+
+<b>Kronologi:</b>
+${escapeHtml(laporan.kronologi)}
+
+Silakan cek dashboard admin.
+`;
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: pesan,
+      parse_mode: "HTML",
+      disable_web_page_preview: true
+    })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    console.error("Gagal kirim notifikasi Telegram:", result);
+  } else {
+    console.log("Notifikasi Telegram berhasil dikirim.");
+  }
+}
 
 function makeKode() {
   const list = readDB();
@@ -171,14 +306,18 @@ app.post("/api/pengaduan", upload.single("bukti"), (req, res) => {
   };
 
   const list = readDB();
-  list.unshift(laporanBaru);
-  writeDB(list);
+list.unshift(laporanBaru);
+writeDB(list);
 
-  res.status(201).json({
-    success: true,
-    message: "Pengaduan berhasil dikirim.",
-    data: laporanBaru
-  });
+sendTelegramNotification(laporanBaru).catch((error) => {
+  console.error("Error notifikasi Telegram:", error.message);
+});
+
+res.status(201).json({
+  success: true,
+  message: "Pengaduan berhasil dikirim.",
+  data: laporanBaru
+});
 });
 
 app.get("/api/pengaduan", requireAdmin, (req, res) => {
