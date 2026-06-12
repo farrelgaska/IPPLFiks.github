@@ -5,11 +5,6 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend berjalan di port ${PORT}`);
-});
 
 const DATA_DIR = path.join(__dirname, "data");
 const UPLOAD_DIR = path.join(__dirname, "uploads");
@@ -27,9 +22,6 @@ const ADMIN_USERNAME = "admin_wanasari";
 const ADMIN_PASSWORD = "admin123";
 const ADMIN_TOKEN = "demo-admin-token-wanasari";
 
-const TELEGRAM_BOT_TOKEN = "8826068957:AAHRfhUV_qFkfN0kd3s3pee2xeZESlOwO9E";
-const TELEGRAM_ADMIN_CHAT_ID = "5880277259";
-
 function readDB() {
   return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
 }
@@ -41,11 +33,7 @@ function writeDB(data) {
 function clean(value) {
   return String(value || "").trim();
 }
-function clean(value) {
-  return String(value || "").trim();
-}
 
-// TEMPEL KODE TELEGRAM DI SINI
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -58,18 +46,18 @@ async function sendTelegramNotification(laporan) {
   const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
   if (!token || !chatId) {
-    console.log("Telegram belum dikonfigurasi. Notifikasi dilewati.");
-    return;
+    console.log("Telegram belum dikonfigurasi. Cek Railway Variables.");
+    return false;
   }
 
-  const waktu = new Date(laporan.createdAt).toLocaleString("id-ID", {
+  const waktu = new Date(laporan.createdAt || Date.now()).toLocaleString("id-ID", {
     timeZone: "Asia/Jakarta",
     dateStyle: "medium",
     timeStyle: "short"
   });
 
   const pesan = `
-<b>🚨 Pengaduan Baru Masuk</b>
+<b>🚨 PENGADUAN BARU MASUK</b>
 
 <b>Kode:</b> ${escapeHtml(laporan.kode)}
 <b>Nama:</b> ${escapeHtml(laporan.namaLengkap)}
@@ -83,97 +71,34 @@ async function sendTelegramNotification(laporan) {
 ${escapeHtml(laporan.kronologi)}
 
 Silakan cek dashboard admin.
-`;
+`.trim();
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: pesan,
-      parse_mode: "HTML",
-      disable_web_page_preview: true
-    })
-  });
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: pesan,
+        parse_mode: "HTML",
+        disable_web_page_preview: true
+      })
+    });
 
-  const result = await response.json();
+    const result = await response.json();
 
-  if (!response.ok) {
-    console.error("Gagal kirim notifikasi Telegram:", result);
-  } else {
+    if (!response.ok) {
+      console.error("Gagal kirim Telegram:", result);
+      return false;
+    }
+
     console.log("Notifikasi Telegram berhasil dikirim.");
-  }
-}
-
-function makeKode() {
-  const list = readDB();
-  const year = new Date().getFullYear();
-  const sameYear = list.filter((item) => item.kode.includes(`WNS-${year}`));
-  const nextNumber = sameYear.length + 1;
-
-  return `WNS-${year}-${String(nextNumber).padStart(5, "0")}`;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-async function sendTelegramNotification(laporan) {
-  const token = TELEGRAM_BOT_TOKEN;
-  const chatId = TELEGRAM_ADMIN_CHAT_ID;
-
-  if (!token || !chatId) {
-    console.log("Telegram belum dikonfigurasi. Notifikasi dilewati.");
-    return;
-  }
-
-  const waktu = new Date(laporan.createdAt).toLocaleString("id-ID", {
-    timeZone: "Asia/Jakarta",
-    dateStyle: "medium",
-    timeStyle: "short"
-  });
-
-  const pesan = `
-<b>🚨 Pengaduan Baru Masuk</b>
-
-<b>Kode:</b> ${escapeHtml(laporan.kode)}
-<b>Nama:</b> ${escapeHtml(laporan.namaLengkap)}
-<b>No HP:</b> ${escapeHtml(laporan.noHp)}
-<b>Kategori:</b> ${escapeHtml(laporan.kategori)}
-<b>Lokasi:</b> ${escapeHtml(laporan.lokasi)}
-<b>Status:</b> ${escapeHtml(laporan.status)}
-<b>Waktu:</b> ${escapeHtml(waktu)}
-
-<b>Kronologi:</b>
-${escapeHtml(laporan.kronologi)}
-
-Silakan cek dashboard admin.
-`;
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: pesan,
-      parse_mode: "HTML",
-      disable_web_page_preview: true
-    })
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    console.error("Gagal kirim notifikasi Telegram:", result);
-  } else {
-    console.log("Notifikasi Telegram berhasil dikirim.");
+    return true;
+  } catch (error) {
+    console.error("Error kirim Telegram:", error.message);
+    return false;
   }
 }
 
@@ -220,6 +145,28 @@ const upload = multer({
 app.get("/", (req, res) => {
   res.json({
     message: "Backend E-Pengaduan Polsek Wanasari aktif."
+  });
+});
+
+app.get("/api/test-telegram", async (req, res) => {
+  const dummyLaporan = {
+    kode: "TEST-TELEGRAM-001",
+    namaLengkap: "Admin Test",
+    noHp: "08123456789",
+    kategori: "Testing",
+    lokasi: "Polsek Wanasari",
+    status: "Menunggu Verifikasi",
+    createdAt: new Date().toISOString(),
+    kronologi: "Ini adalah pesan test dari backend E-Pengaduan."
+  };
+
+  const berhasil = await sendTelegramNotification(dummyLaporan);
+
+  res.json({
+    success: berhasil,
+    message: berhasil
+      ? "Pesan test Telegram berhasil dikirim."
+      : "Pesan test Telegram gagal dikirim. Cek Railway Logs."
   });
 });
 
@@ -308,7 +255,7 @@ app.post("/api/pengaduan", upload.single("bukti"), (req, res) => {
     ]
   };
 
-  const list = readDB();
+const list = readDB();
 list.unshift(laporanBaru);
 writeDB(list);
 
@@ -483,6 +430,8 @@ app.get("/api/stats", requireAdmin, (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend berjalan di http://localhost:${PORT}`);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Backend berjalan di port ${PORT}`);
 });
