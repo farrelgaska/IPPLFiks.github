@@ -639,3 +639,638 @@ document.addEventListener("DOMContentLoaded", () => {
     showAdminPage("dashboard");
   }
 });
+
+// ======================================================
+// PATCH ADMIN INTERAKTIF: KATEGORI + PROFIL + LIHAT SANDI
+// Tempel di PALING BAWAH admin/script.js
+// ======================================================
+
+(() => {
+  const qs = (selector, parent = document) => parent.querySelector(selector);
+  const qsa = (selector, parent = document) => [...parent.querySelectorAll(selector)];
+
+  const KATEGORI_KEY = "adminKategoriPengaduan";
+  const PROFIL_KEY = "adminProfilData";
+
+  function toast(message) {
+    if (typeof showToast === "function") {
+      showToast(message);
+      return;
+    }
+
+    alert(message);
+  }
+
+  function escapeText(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // ======================================================
+  // MODAL KATEGORI
+  // ======================================================
+
+  function injectKategoriModal() {
+    if (qs("#kategori-modal-admin")) return;
+
+    const style = document.createElement("style");
+    style.textContent = `
+      .kategori-modal-admin {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+      }
+
+      .kategori-modal-admin.open {
+        display: flex;
+      }
+
+      .kategori-modal-box {
+        width: 460px;
+        max-width: calc(100% - 32px);
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 20px 70px rgba(0,0,0,.25);
+        padding: 24px;
+      }
+
+      .kategori-modal-box h3 {
+        font-size: 18px;
+        font-weight: 800;
+        margin-bottom: 18px;
+        color: #0d1117;
+      }
+
+      .kategori-form-group {
+        margin-bottom: 14px;
+      }
+
+      .kategori-form-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: #343a40;
+      }
+
+      .kategori-form-group input,
+      .kategori-form-group textarea,
+      .kategori-form-group select {
+        width: 100%;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      }
+
+      .kategori-form-group textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
+      .kategori-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .kategori-btn-cancel,
+      .kategori-btn-save {
+        border: none;
+        border-radius: 8px;
+        padding: 10px 18px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .kategori-btn-cancel {
+        background: #f1f3f5;
+        color: #343a40;
+      }
+
+      .kategori-btn-save {
+        background: #0d1117;
+        color: #fff;
+      }
+
+      .password-field-wrap {
+        position: relative;
+      }
+
+      .password-field-wrap input {
+        padding-right: 70px !important;
+      }
+
+      .toggle-profile-password {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: #eef2ff;
+        color: #1a237e;
+        border-radius: 6px;
+        padding: 5px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    `;
+
+    document.head.appendChild(style);
+
+    const modal = document.createElement("div");
+    modal.id = "kategori-modal-admin";
+    modal.className = "kategori-modal-admin";
+
+    modal.innerHTML = `
+      <div class="kategori-modal-box">
+        <h3 id="kategori-modal-title">Tambah Kategori</h3>
+
+        <div class="kategori-form-group">
+          <label>Nama Kategori</label>
+          <input type="text" id="kategori-input-nama" placeholder="Contoh: Kehilangan Barang">
+        </div>
+
+        <div class="kategori-form-group">
+          <label>Subjudul</label>
+          <input type="text" id="kategori-input-sub" placeholder="Contoh: Pelaporan barang hilang/tercecer">
+        </div>
+
+        <div class="kategori-form-group">
+          <label>Deskripsi</label>
+          <textarea id="kategori-input-deskripsi" placeholder="Masukkan deskripsi kategori"></textarea>
+        </div>
+
+        <div class="kategori-form-group">
+          <label>Status</label>
+          <select id="kategori-input-status">
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </select>
+        </div>
+
+        <div class="kategori-modal-actions">
+          <button type="button" class="kategori-btn-cancel" id="kategori-btn-cancel">Batal</button>
+          <button type="button" class="kategori-btn-save" id="kategori-btn-save">Simpan</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    qs("#kategori-btn-cancel").addEventListener("click", closeKategoriModal);
+
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeKategoriModal();
+    });
+  }
+
+  let kategoriEditIndex = null;
+
+  function openKategoriModal(mode, index = null) {
+    injectKategoriModal();
+
+    const modal = qs("#kategori-modal-admin");
+    const title = qs("#kategori-modal-title");
+
+    const namaInput = qs("#kategori-input-nama");
+    const subInput = qs("#kategori-input-sub");
+    const deskripsiInput = qs("#kategori-input-deskripsi");
+    const statusInput = qs("#kategori-input-status");
+    const saveBtn = qs("#kategori-btn-save");
+
+    kategoriEditIndex = index;
+
+    if (mode === "edit") {
+      const data = getKategoriData()[index];
+
+      title.textContent = "Edit Kategori";
+      namaInput.value = data.nama || "";
+      subInput.value = data.sub || "";
+      deskripsiInput.value = data.deskripsi || "";
+      statusInput.value = data.status || "Aktif";
+    } else {
+      title.textContent = "Tambah Kategori";
+      namaInput.value = "";
+      subInput.value = "";
+      deskripsiInput.value = "";
+      statusInput.value = "Aktif";
+    }
+
+    saveBtn.onclick = saveKategoriFromModal;
+
+    modal.classList.add("open");
+    setTimeout(() => namaInput.focus(), 50);
+  }
+
+  function closeKategoriModal() {
+    const modal = qs("#kategori-modal-admin");
+    if (modal) modal.classList.remove("open");
+    kategoriEditIndex = null;
+  }
+
+  function getInitialKategoriFromTable() {
+    const kategoriPage = qs("#page-kategori");
+    if (!kategoriPage) return [];
+
+    const rows = qsa("tbody tr", kategoriPage);
+
+    return rows.map((row) => {
+      const cells = row.querySelectorAll("td");
+
+      const nama = cells[1]?.querySelector("div:first-child")?.textContent.trim() || "";
+      const sub = cells[1]?.querySelector("div:nth-child(2)")?.textContent.trim() || "";
+      const deskripsi = cells[2]?.textContent.trim() || "";
+      const statusText = cells[3]?.textContent.trim().toLowerCase() || "aktif";
+
+      return {
+        nama,
+        sub,
+        deskripsi,
+        status: statusText.includes("nonaktif") ? "Nonaktif" : "Aktif"
+      };
+    }).filter((item) => item.nama);
+  }
+
+  function getKategoriData() {
+    const saved = localStorage.getItem(KATEGORI_KEY);
+
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+
+    const initialData = getInitialKategoriFromTable();
+
+    if (initialData.length) {
+      localStorage.setItem(KATEGORI_KEY, JSON.stringify(initialData));
+    }
+
+    return initialData;
+  }
+
+  function setKategoriData(data) {
+    localStorage.setItem(KATEGORI_KEY, JSON.stringify(data));
+  }
+
+  function saveKategoriFromModal() {
+    const nama = qs("#kategori-input-nama").value.trim();
+    const sub = qs("#kategori-input-sub").value.trim();
+    const deskripsi = qs("#kategori-input-deskripsi").value.trim();
+    const status = qs("#kategori-input-status").value;
+
+    if (!nama) {
+      toast("Nama kategori wajib diisi");
+      return;
+    }
+
+    if (!deskripsi) {
+      toast("Deskripsi kategori wajib diisi");
+      return;
+    }
+
+    const data = getKategoriData();
+
+    const item = {
+      nama,
+      sub: sub || "Kategori pengaduan masyarakat",
+      deskripsi,
+      status
+    };
+
+    if (kategoriEditIndex === null) {
+      data.push(item);
+      toast("Kategori berhasil ditambahkan");
+    } else {
+      data[kategoriEditIndex] = item;
+      toast("Kategori berhasil diperbarui");
+    }
+
+    setKategoriData(data);
+    renderKategoriTable();
+    closeKategoriModal();
+  }
+
+  function renderKategoriTable() {
+    const kategoriPage = qs("#page-kategori");
+    if (!kategoriPage) return;
+
+    const tbody = qs("tbody", kategoriPage);
+    if (!tbody) return;
+
+    const data = getKategoriData();
+
+    tbody.innerHTML = data.map((item, index) => `
+      <tr data-index="${index}">
+        <td>${index + 1}</td>
+
+        <td>
+          <div style="font-weight:700;">${escapeText(item.nama)}</div>
+          <div style="font-size:11px;color:var(--gray-600);">${escapeText(item.sub)}</div>
+        </td>
+
+        <td style="color:var(--gray-600);">${escapeText(item.deskripsi)}</td>
+
+        <td>
+          <span class="badge ${item.status === "Aktif" ? "badge-aktif" : "badge-nonaktif"}">
+            ${escapeText(item.status)}
+          </span>
+        </td>
+
+        <td>
+          <div class="action-icons">
+            <button class="gray btn-edit-kategori" type="button" title="Edit kategori">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+
+            <button class="red btn-delete-kategori" type="button" title="Hapus kategori">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    updateKategoriStats();
+    filterKategoriTable();
+  }
+
+  function updateKategoriStats() {
+    const kategoriPage = qs("#page-kategori");
+    if (!kategoriPage) return;
+
+    const data = getKategoriData();
+    const total = data.length;
+    const aktif = data.filter((item) => item.status === "Aktif").length;
+
+    const values = qsa(".kat-stat-card .ks-value", kategoriPage);
+
+    if (values[0]) values[0].textContent = total;
+    if (values[1]) values[1].textContent = aktif;
+
+    if (values[2]) {
+      values[2].textContent = data[0]?.nama || "-";
+    }
+
+    const paginationText = qs(".pagination-row span", kategoriPage);
+    if (paginationText) {
+      paginationText.textContent = `Menampilkan 1-${Math.min(total, 5)} dari ${total} kategori`;
+    }
+  }
+
+  function filterKategoriTable() {
+    const kategoriPage = qs("#page-kategori");
+    if (!kategoriPage) return;
+
+    const keyword = qs(".search-box", kategoriPage)?.value.toLowerCase().trim() || "";
+
+    qsa("tbody tr", kategoriPage).forEach((row) => {
+      row.style.display = row.innerText.toLowerCase().includes(keyword) ? "" : "none";
+    });
+  }
+
+  function deleteKategori(index) {
+    const data = getKategoriData();
+    const nama = data[index]?.nama || "kategori ini";
+
+    const yakin = confirm(`Hapus kategori "${nama}"?`);
+    if (!yakin) return;
+
+    data.splice(index, 1);
+    setKategoriData(data);
+    renderKategoriTable();
+
+    toast("Kategori berhasil dihapus");
+  }
+
+  function setupKategoriPage() {
+    const kategoriPage = qs("#page-kategori");
+    if (!kategoriPage) return;
+
+    injectKategoriModal();
+
+    renderKategoriTable();
+
+    const oldTambahBtn = qs(".btn-tambah", kategoriPage);
+    if (oldTambahBtn) {
+      const newTambahBtn = oldTambahBtn.cloneNode(true);
+      oldTambahBtn.replaceWith(newTambahBtn);
+
+      newTambahBtn.addEventListener("click", () => {
+        openKategoriModal("add");
+      });
+    }
+
+    const searchBox = qs(".search-box", kategoriPage);
+    if (searchBox) {
+      searchBox.addEventListener("input", filterKategoriTable);
+      searchBox.addEventListener("keyup", filterKategoriTable);
+    }
+
+    const filterBtn = qs(".btn-filter", kategoriPage);
+    if (filterBtn) {
+      filterBtn.addEventListener("click", filterKategoriTable);
+    }
+
+    kategoriPage.addEventListener("click", (event) => {
+      const editBtn = event.target.closest(".btn-edit-kategori");
+      const deleteBtn = event.target.closest(".btn-delete-kategori");
+
+      if (editBtn) {
+        event.preventDefault();
+        const row = editBtn.closest("tr");
+        const index = Number(row.dataset.index);
+        openKategoriModal("edit", index);
+      }
+
+      if (deleteBtn) {
+        event.preventDefault();
+        const row = deleteBtn.closest("tr");
+        const index = Number(row.dataset.index);
+        deleteKategori(index);
+      }
+    });
+  }
+
+  // ======================================================
+  // PROFIL ADMIN
+  // ======================================================
+
+  function clearFakePasswordBullets(input) {
+    if (!input) return;
+
+    if (input.value.includes("•")) {
+      input.value = "";
+      input.placeholder = "••••••••";
+    }
+  }
+
+  function setupPasswordToggle() {
+    const profilPage = qs("#page-profil");
+    if (!profilPage) return;
+
+    const passwordInputs = qsa('.settings-card input[type="password"]', profilPage);
+
+    passwordInputs.forEach((input) => {
+      clearFakePasswordBullets(input);
+
+      const group = input.closest(".s-group");
+      if (!group) return;
+
+      if (group.classList.contains("password-field-wrap")) return;
+
+      group.classList.add("password-field-wrap");
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "toggle-profile-password";
+      btn.textContent = "Lihat";
+
+      btn.addEventListener("click", () => {
+        const isHidden = input.type === "password";
+        input.type = isHidden ? "text" : "password";
+        btn.textContent = isHidden ? "Tutup" : "Lihat";
+      });
+
+      group.appendChild(btn);
+    });
+  }
+
+  function saveProfilAdmin() {
+    const profilPage = qs("#page-profil");
+    if (!profilPage) return;
+
+    const inputs = qsa(".settings-card input", profilPage);
+
+    const namaLengkap = inputs[0]?.value.trim();
+    const username = inputs[1]?.value.trim();
+    const sandiLama = inputs[2]?.value.trim();
+    const sandiBaru = inputs[3]?.value.trim();
+    const konfirmasiSandi = inputs[4]?.value.trim();
+
+    if (!namaLengkap) {
+      toast("Nama lengkap wajib diisi");
+      return;
+    }
+
+    if (!username) {
+      toast("Username wajib diisi");
+      return;
+    }
+
+    const ubahSandi = sandiLama || sandiBaru || konfirmasiSandi;
+
+    if (ubahSandi && !sandiLama) {
+      toast("Kata sandi lama wajib diisi jika ingin mengubah kata sandi");
+      return;
+    }
+
+    if (ubahSandi && !sandiBaru) {
+      toast("Kata sandi baru wajib diisi");
+      return;
+    }
+
+    if (ubahSandi && sandiBaru !== konfirmasiSandi) {
+      toast("Konfirmasi kata sandi baru tidak sesuai");
+      return;
+    }
+
+    qs(".profil-name", profilPage).textContent = namaLengkap;
+    qs(".profil-handle", profilPage).textContent = username;
+
+    qsa(".admin-info .name").forEach((el) => {
+      el.textContent = namaLengkap;
+    });
+
+    localStorage.setItem(PROFIL_KEY, JSON.stringify({
+      namaLengkap,
+      username,
+      updatedAt: new Date().toISOString()
+    }));
+
+    if (ubahSandi) {
+      inputs[2].value = "";
+      inputs[3].value = "";
+      inputs[4].value = "";
+
+      toast("Profil dan kata sandi berhasil diperbarui");
+    } else {
+      toast("Profil admin berhasil diperbarui");
+    }
+  }
+
+  function loadProfilAdminPatch() {
+    const profilPage = qs("#page-profil");
+    if (!profilPage) return;
+
+    const saved = localStorage.getItem(PROFIL_KEY);
+    if (!saved) return;
+
+    try {
+      const data = JSON.parse(saved);
+      const inputs = qsa(".settings-card input", profilPage);
+
+      if (inputs[0]) inputs[0].value = data.namaLengkap || "";
+      if (inputs[1]) inputs[1].value = data.username || "";
+
+      qs(".profil-name", profilPage).textContent = data.namaLengkap || "Admin";
+      qs(".profil-handle", profilPage).textContent = data.username || "@admin";
+
+      qsa(".admin-info .name").forEach((el) => {
+        el.textContent = data.namaLengkap || "Admin";
+      });
+    } catch {
+      localStorage.removeItem(PROFIL_KEY);
+    }
+  }
+
+  function setupProfilPage() {
+    const profilPage = qs("#page-profil");
+    if (!profilPage) return;
+
+    setupPasswordToggle();
+    loadProfilAdminPatch();
+
+    const oldSaveBtn = qs(".btn-simpan-profil", profilPage);
+
+    if (oldSaveBtn) {
+      const newSaveBtn = oldSaveBtn.cloneNode(true);
+      oldSaveBtn.replaceWith(newSaveBtn);
+
+      newSaveBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        saveProfilAdmin();
+      });
+    }
+  }
+
+  // ======================================================
+  // INIT PATCH
+  // ======================================================
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setupKategoriPage();
+    setupProfilPage();
+  });
+})();
